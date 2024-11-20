@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOP SECRET Nuclear Testing</title>
+    <link rel="stylesheet" href="https://js.arcgis.com/4.26/esri/themes/light/main.css">
+    <!-- Include Calcite Web CSS for styling -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@esri/calcite-web/dist/calcite/calcite.css">
+    <script src="https://js.arcgis.com/4.26/"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@esri/calcite-web/dist/calcite/calcite.js"></script> <!-- Include Calcite JS -->
+    <style>
+        #viewDiv {
+            height: 100vh;
+            width: 100%;
+            position: relative;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Center the TOP SECRET text */
+        .stamp {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg); /* Center and rotate */
+            padding: 10px 20px;
+            border: 5px solid black;
+            background-color: rgba(255, 255, 255, 0); /* Transparent background */
+            text-align: center;
+            font-weight: bold;
+            font-size: 2rem;
+            color: black; /* Change color to black */
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            opacity: 0.8; /* Adjust the opacity to control transparency of text */
+        }
+
+        .stamp h1 {
+            margin: 0;
+        }
+
+        /* Style for the icon in the top-right corner */
+        .popup-icon {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            transition: transform 0.3s ease; /* Smooth transition for scaling */
+        }
+
+        /* Grow the icon when hovered */
+        .popup-icon:hover {
+            transform: scale(1.5); /* Increase size by 1.5 times */
+        }
+
+        /* Popup modal styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); /* Black with transparency */
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 60%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        .modal-content img {
+            width: 100%;
+            height: auto;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .modal p {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="viewDiv"></div>
+    <div class="stamp">
+        <h1>TOP SECRET</h1>
+    </div>
+
+    <!-- Replace button with Calcite icon -->
+    <calcite-icon icon="information-f" text-label="360 degree view" class="popup-icon" id="popupBtn"></calcite-icon>
+
+    <!-- Modal (popup window) -->
+    <div id="myModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <img src="https://gifdb.com/images/high/mushroom-cloud-420-x-250-gif-punurd8oiha4dq7j.gif" alt="Mushroom Cloud GIF">
+            <p>OSM Data pulled from BigQuery using 'bigquery-public-data.geo_openstreetmap.planet_nodes'</p>
+            <br><a href="https://wiki.openstreetmap.org/wiki/BigQuery_dataset">Helpful Wiki Document on Querying OSM in BigQuery</a>
+        </div>
+    </div>
+
+    <script>
+        // Get the modal, button, and close elements
+        var modal = document.getElementById("myModal");
+        var btn = document.getElementById("popupBtn");
+        var span = document.getElementsByClassName("close")[0];
+
+        // When the user clicks the icon, open the modal
+        btn.onclick = function() {
+            modal.style.display = "block";
+        }
+
+        // When the user clicks on <span> (x), close the modal
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        // When the user clicks anywhere outside the modal, close it
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        require([
+          "esri/Map",
+          "esri/views/MapView",
+          "esri/layers/TileLayer",
+          "esri/layers/FeatureLayer",
+          "esri/symbols/SimpleMarkerSymbol",
+          "esri/renderers/SimpleRenderer",
+          "esri/Graphic",
+          "esri/layers/GraphicsLayer"
+        ], function (Map, MapView, TileLayer, FeatureLayer, SimpleMarkerSymbol, SimpleRenderer, Graphic, GraphicsLayer) {
+          
+          // Create the USA Topo Maps basemap TileLayer
+          var usaTopoLayer = new TileLayer({
+            url: "https://services.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer"
+          });
+
+          // Create the FeatureLayer from the provided URL
+          var featureLayer = new FeatureLayer({
+            url: "https://services2.arcgis.com/MqlDEaOjcUFDoRAi/arcgis/rest/services/bq_results_20241120_180353_1732125901580/FeatureServer",
+            
+            // Filter the layer to only show features where the 'key_field' contains the word 'nuclear'
+            definitionExpression: "value LIKE '%nuclear%'"
+          });
+
+          // Create a bullseye symbol (SimpleMarkerSymbol) for the outer circle with 50% opacity
+          var outerBullseyeSymbol = new SimpleMarkerSymbol({
+            style: "circle",  // Outer ring style is a circle
+            color: [255, 0, 0, 0.5], // Red color for the outer ring with 50% opacity
+            size: 10, // Outer ring size
+            outline: {
+              color: [0, 0, 0], // Black outline for outer ring
+              width: 2
+            }
+          });
+
+          // Create the inner circle symbol (for the center of the bullseye) with 50% opacity
+          var innerBullseyeSymbol = new SimpleMarkerSymbol({
+            style: "circle",  // Inner ring style is a circle
+            color: [0, 255, 0, 0.5], // Green color for the inner circle with 50% opacity
+            size: 6, // Inner circle size
+            outline: {
+              color: [0, 0, 0], // Black outline for inner circle
+              width: 2
+            }
+          });
+
+          // Define a renderer to apply the bullseye symbol (outer and inner circles)
+          var renderer = new SimpleRenderer({
+            symbol: outerBullseyeSymbol // Apply outer bullseye symbol initially
+          });
+
+          // Apply the renderer to the featureLayer
+          featureLayer.renderer = renderer;
+
+          // Create a new map with both the USA Topo Map and the Feature Layer
+          var map = new Map({
+            layers: [usaTopoLayer, featureLayer] // Add both layers to the map
+          });
+
+          // Create a new MapView and set its container and properties
+          var view = new MapView({
+            container: "viewDiv", // The id of the div element to place the view in
+            map: map,
+            center: [-116.03320307784335, 37.09229478834472], // New center coordinates
+            zoom: 12 // Initial zoom level
+          });
+        });
+    </script>
+</body>
+</html>
